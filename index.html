@@ -1,0 +1,387 @@
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Al Fursan Bakery</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--wine:#762f37;--dark:#4c1d24;--gold:#d9ad62;--bg:#f7f3ef}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:#292323}
+header{background:linear-gradient(120deg,var(--dark),var(--wine));color:white;padding:22px;text-align:center}
+header h1{margin:0;font-size:25px}
+header p{margin:7px 0 0}
+.container{max-width:1100px;margin:auto;padding:15px}
+.card{background:white;border-radius:13px;padding:16px;margin:12px 0;box-shadow:0 3px 12px #0000000c}
+h2{color:var(--wine);font-size:20px;margin-top:5px}
+input,select,button{font:inherit;padding:11px;border:1px solid #ddd;border-radius:8px;width:100%;margin:5px 0}
+button{background:var(--wine);color:white;border:0;font-weight:bold;cursor:pointer}
+button.secondary{background:#eee;color:#333}
+button.danger{background:#a52b2b}
+button.gold{background:#bd9148}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}
+.metric{background:#fff;border-left:4px solid var(--gold);padding:15px;border-radius:10px}
+.metric strong{display:block;font-size:22px;color:var(--wine);margin-top:8px}
+nav{display:flex;gap:6px;overflow:auto;padding:10px 0}
+nav button{min-width:max-content;width:auto;padding:10px 14px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:9px;border-bottom:1px solid #eee;text-align:left}
+th{background:#f4e9e7;color:var(--dark)}
+.tablewrap{overflow-x:auto}
+.small{font-size:12px;color:#777}
+.hidden{display:none!important}
+.msg{padding:10px;background:#f8eee5;border-radius:8px;margin:8px 0}
+.positive{color:green}.negative{color:#b21e35}
+@media(max-width:600px){header h1{font-size:21px}.container{padding:9px}.card{padding:12px}}
+</style>
+</head>
+<body>
+<header>
+<h1>🥐 Al Fursan Bakery</h1>
+<p>বেকারি ব্যবসার হিসাব • Bakery Business Manager</p>
+</header>
+
+<div class="container">
+
+<section id="auth">
+<div class="card">
+<h2>সদস্য Login / Registration</h2>
+<div id="authMsg" class="msg">প্রথম সদস্য অ্যাকাউন্ট তৈরি করুন অথবা লগইন করুন।</div>
+<input id="username" placeholder="User ID">
+<input id="displayName" placeholder="সদস্যের নাম (Registration)">
+<input id="password" type="password" placeholder="Password">
+<input id="regCode" placeholder="Registration / Invite Code (নতুন সদস্যের জন্য)">
+<button onclick="login()">Login</button>
+<button class="gold" onclick="register()">নতুন সদস্য তৈরি করুন</button>
+<p class="small">সর্বোচ্চ ৫ জন সদস্য। প্রত্যেকের আলাদা User ID ও Password থাকবে।</p>
+</div>
+</section>
+
+<section id="app" class="hidden">
+<div class="card">
+<div class="grid">
+<div><b id="welcome">সদস্য</b><div class="small">Al Fursan Bakery</div></div>
+<div><button class="secondary" onclick="logout()">Logout</button></div>
+</div>
+</div>
+
+<nav>
+<button onclick="showTab('dashboard')">ড্যাশবোর্ড</button>
+<button onclick="showTab('members')">সদস্য</button>
+<button onclick="showTab('items')">পণ্য</button>
+<button onclick="showTab('sales')">বিক্রি</button>
+<button onclick="showTab('expenses')">খরচ</button>
+<button onclick="showTab('dues')">বাকি</button>
+<button onclick="showTab('stock')">স্টক</button>
+<button onclick="showTab('ledger')">লেনদেন</button>
+<button onclick="showTab('backup')">Excel / Backup</button>
+</nav>
+
+<section id="dashboard" class="tab">
+<div class="grid">
+<div class="metric">মোট বিক্রি<strong id="totalSales">0 SAR</strong></div>
+<div class="metric">মোট খরচ<strong id="totalExpenses">0 SAR</strong></div>
+<div class="metric">অবশিষ্ট<strong id="balance">0 SAR</strong></div>
+<div class="metric">সদস্য<strong id="memberCount">0/5</strong></div>
+</div>
+<div class="card">
+<h2>আজকের হিসাব</h2>
+<div class="grid">
+<div class="metric">আজকের বিক্রি<strong id="todaySales">0 SAR</strong></div>
+<div class="metric">আজকের খরচ<strong id="todayExpenses">0 SAR</strong></div>
+<div class="metric">আজকের অবশিষ্ট<strong id="todayBalance">0 SAR</strong></div>
+</div>
+</div>
+<div class="card">
+<h2>সদস্য অনুযায়ী মোট বিক্রি</h2>
+<div class="tablewrap"><table><thead><tr><th>সদস্য</th><th>বিক্রি</th></tr></thead><tbody id="memberTotals"></tbody></table></div>
+</div>
+</section>
+
+<section id="members" class="tab hidden">
+<div class="card">
+<h2>সদস্যের নাম ও User ID পরিবর্তন</h2>
+<input id="newDisplayName" placeholder="নতুন সদস্যের নাম">
+<input id="newUsername" placeholder="নতুন User ID">
+<button onclick="updateProfile()">নিজের তথ্য পরিবর্তন</button>
+<button class="secondary" onclick="createInvite()">নতুন সদস্যের Invite Code তৈরি</button>
+<div id="inviteResult"></div>
+</div>
+<div class="card"><h2>সদস্য তালিকা</h2><div id="memberList"></div></div>
+</section>
+
+<section id="items" class="tab hidden">
+<div class="card">
+<h2>নতুন পণ্য যোগ করুন</h2>
+<input id="itemName" placeholder="পণ্যের নাম">
+<input id="itemPrice" type="number" min="0" step="0.01" placeholder="একক মূল্য (SAR)">
+<button onclick="addItem()">পণ্য সংরক্ষণ</button>
+</div>
+<div class="card"><h2>পণ্যের তালিকা</h2><div class="tablewrap"><table><thead><tr><th>পণ্য</th><th>মূল্য</th><th>কাজ</th></tr></thead><tbody id="itemList"></tbody></table></div></div>
+</section>
+
+<section id="sales" class="tab hidden">
+<div class="card">
+<h2>নতুন বিক্রি</h2>
+<input id="saleDate" type="date">
+<select id="saleMember"></select>
+<select id="saleItem" onchange="priceChanged()"><option value="">পণ্য নির্বাচন</option></select>
+<input id="saleQty" type="number" min="0" step="0.01" placeholder="পরিমাণ" oninput="calculateSale()">
+<input id="saleUnitPrice" type="number" min="0" step="0.01" placeholder="একক মূল্য (SAR)" oninput="calculateSale()">
+<label>মোট বিক্রি (SAR)</label>
+<input id="saleTotal" readonly placeholder="অটোমেটিক হিসাব">
+<select id="salePayment"><option>Cash</option><option>Credit</option><option>Bank</option></select>
+<button onclick="addSale()">বিক্রি সংরক্ষণ</button>
+</div>
+<div class="card"><h2>বিক্রির হিসাব</h2><div class="tablewrap"><table><thead><tr><th>তারিখ</th><th>পণ্য</th><th>সদস্য</th><th>পরিমাণ</th><th>মোট</th></tr></thead><tbody id="salesList"></tbody></table></div></div>
+</section>
+
+<section id="expenses" class="tab hidden">
+<div class="card">
+<h2>নতুন খরচ</h2>
+<input id="expenseDate" type="date">
+<select id="expenseMember"></select>
+<select id="expenseCategory">
+<option>Ingredients</option><option>Salary</option><option>Rent</option>
+<option>Utilities</option><option>Vehicle Repair</option>
+<option>Diesel</option><option>Petrol</option><option>Transport</option><option>Other</option>
+</select>
+<input id="expenseDescription" placeholder="খরচের বিবরণ">
+<input id="expenseAmount" type="number" min="0" step="0.01" placeholder="খরচের পরিমাণ (SAR)">
+<button onclick="addExpense()">খরচ সংরক্ষণ</button>
+</div>
+<div class="card"><h2>খরচের তালিকা</h2><div class="tablewrap"><table><thead><tr><th>তারিখ</th><th>ধরন</th><th>সদস্য</th><th>বিবরণ</th><th>টাকা</th></tr></thead><tbody id="expensesList"></tbody></table></div></div>
+</section>
+
+<section id="dues" class="tab hidden">
+<div class="card">
+<h2>বাকি হিসাব</h2>
+<input id="dueDate" type="date">
+<input id="duePerson" placeholder="ব্যক্তির নাম">
+<select id="dueMember"></select>
+<input id="dueAmount" type="number" min="0" step="0.01" placeholder="বাকি টাকা SAR">
+<button onclick="addDue()">বাকি যোগ করুন</button>
+</div>
+<div class="card"><div class="tablewrap"><table><thead><tr><th>নাম</th><th>টাকা</th><th>অবস্থা</th><th>কাজ</th></tr></thead><tbody id="duesList"></tbody></table></div></div>
+</section>
+
+<section id="stock" class="tab hidden">
+<div class="card">
+<h2>স্টক / কাঁচামাল</h2>
+<input id="stockName" placeholder="পণ্যের নাম">
+<input id="stockQty" type="number" step="0.01" placeholder="পরিমাণ">
+<input id="stockUnit" placeholder="একক (kg, bag, pcs)">
+<input id="stockValue" type="number" step="0.01" placeholder="মোট মূল্য SAR">
+<button onclick="addStock()">স্টক সংরক্ষণ</button>
+</div>
+<div class="card"><div class="tablewrap"><table><thead><tr><th>নাম</th><th>পরিমাণ</th><th>একক</th><th>মূল্য</th></tr></thead><tbody id="stockList"></tbody></table></div></div>
+</section>
+
+<section id="ledger" class="tab hidden">
+<div class="card"><h2>সব লেনদেন</h2><div class="tablewrap"><table><thead><tr><th>তারিখ</th><th>ধরন</th><th>বিবরণ</th><th>সদস্য</th><th>টাকা</th></tr></thead><tbody id="ledgerList"></tbody></table></div></div>
+</section>
+
+<section id="backup" class="tab hidden">
+<div class="card">
+<h2>Excel / CSV Export</h2>
+<button onclick="exportCSV()">সব হিসাব CSV ডাউনলোড</button>
+<button class="secondary" onclick="exportMemberCSV()">সদস্য অনুযায়ী বিক্রি CSV</button>
+<h2>JSON Backup</h2>
+<button class="gold" onclick="backupJSON()">Backup Download</button>
+<input type="file" id="restoreFile" accept=".json">
+<button class="secondary" onclick="restoreJSON()">Backup Restore</button>
+<p class="small">CSV ফাইল Excel-এ খোলা যাবে। নিয়মিত Backup রাখুন।</p>
+</div>
+</section>
+
+</section>
+</div>
+
+<script>
+const SUPABASE_URL="https://znqylparseaoxxauljnd.supabase.co";
+const SUPABASE_KEY="sb_publishable_2rwK3l-hAxgwsvuyTXDReQ_IUatMmOM";
+const FUNCTION_URL=SUPABASE_URL+"/functions/v1/rapid-service";
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+let currentUser=null, members=[], items=[], sales=[], saleItems=[], expenses=[], dues=[], stocks=[];
+const $=id=>document.getElementById(id);
+const money=n=>(Number(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})+" SAR";
+const today=()=>new Date().toISOString().slice(0,10);
+$("saleDate").value=today();
+$("expenseDate").value=today();
+$("dueDate").value=today();
+
+function message(id,t){$(id).textContent=t}
+async function callFunction(action,data={}){
+ const {data:sessionData}=await db.auth.getSession();
+ const token=sessionData.session?.access_token;
+ const r=await fetch(FUNCTION_URL,{method:"POST",headers:{
+ "Content-Type":"application/json","apikey":SUPABASE_KEY,
+ ...(token?{Authorization:"Bearer "+token}:{})
+ },body:JSON.stringify({action,...data})});
+ const result=await r.json();
+ if(!r.ok||result.error)throw Error(result.error||result.message||"Request failed");
+ return result;
+}
+async function login(){
+ try{
+ const username=$("username").value.trim(),password=$("password").value;
+ if(!username||!password)throw Error("User ID ও Password দিন");
+ const r=await callFunction("login",{username,password});
+ if(r.session?.access_token)await db.auth.setSession(r.session);
+ else if(r.access_token)await db.auth.setSession({access_token:r.access_token,refresh_token:r.refresh_token});
+ await startApp();
+ }catch(e){message("authMsg",e.message)}
+}
+async function register(){
+ try{
+ const username=$("username").value.trim(),displayName=$("displayName").value.trim(),password=$("password").value,code=$("regCode").value.trim();
+ if(!username||!displayName||!password||!code)throw Error("সব তথ্য পূরণ করুন");
+ const r=await callFunction("register",{username,displayName,password,bootstrapCode:code,inviteCode:code});
+ if(r.session?.access_token)await db.auth.setSession(r.session);
+ else if(r.access_token)await db.auth.setSession({access_token:r.access_token,refresh_token:r.refresh_token});
+ await startApp();
+ }catch(e){message("authMsg",e.message)}
+}
+async function logout(){await db.auth.signOut();location.reload()}
+async function startApp(){
+ const {data:{session}}=await db.auth.getSession();
+ if(!session){$("auth").classList.remove("hidden");$("app").classList.add("hidden");return}
+ $("auth").classList.add("hidden");$("app").classList.remove("hidden");
+ await refreshAll();
+}
+async function refreshAll(){
+ try{
+ const [m,i,s,si,e,d,st]=await Promise.all([
+ db.from("members").select("*").order("created_at"),
+ db.from("items").select("*").order("created_at"),
+ db.from("sales").select("*").order("sale_date",{ascending:false}),
+ db.from("sale_items").select("*"),
+ db.from("expenses").select("*").order("expense_date",{ascending:false}),
+ db.from("dues").select("*").order("due_date",{ascending:false}),
+ db.from("stock_items").select("*").order("created_at")
+ ]);
+ for(const x of [m,i,s,si,e,d,st])if(x.error)throw x.error;
+ members=m.data;items=i.data;sales=s.data;saleItems=si.data;expenses=e.data;dues=d.data;stocks=st.data;
+ const {data:{user}}=await db.auth.getUser();
+ currentUser=members.find(x=>x.auth_user_id===user?.id);
+ if(!currentUser)throw Error("সদস্য প্রোফাইল পাওয়া যায়নি");
+ $("welcome").textContent=currentUser.display_name;
+ renderAll();
+ }catch(e){alert("তথ্য লোড করা যায়নি: "+e.message)}
+}
+function showTab(id){document.querySelectorAll(".tab").forEach(x=>x.classList.add("hidden"));$(id).classList.remove("hidden")}
+function memberName(id){return members.find(x=>x.id===id)?.display_name||"-"}
+function renderSelect(id){
+ const el=$(id),old=el.value;
+ el.innerHTML='<option value="">সদস্য নির্বাচন (ঐচ্ছিক)</option>'+members.map(m=>`<option value="${m.id}">${escapeHTML(m.display_name)}</option>`).join("");
+ if(old)el.value=old;
+}
+function escapeHTML(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function renderAll(){
+ renderSelect("saleMember");renderSelect("expenseMember");renderSelect("dueMember");
+ $("memberCount").textContent=members.length+"/5";
+ $("itemList").innerHTML=items.map(x=>`<tr><td>${escapeHTML(x.item_name)}</td><td>${money(x.unit_price)}</td><td><button class="secondary" onclick="editItem('${x.id}')">Edit</button></td></tr>`).join("");
+ $("saleItem").innerHTML='<option value="">পণ্য নির্বাচন</option>'+items.map(x=>`<option value="${x.id}">${escapeHTML(x.item_name)}</option>`).join("");
+ $("salesList").innerHTML=sales.map(s=>{const lines=saleItems.filter(x=>x.sale_id===s.id);return lines.map(x=>`<tr><td>${s.sale_date}</td><td>${escapeHTML(x.item_name)}</td><td>${escapeHTML(memberName(s.member_id))}</td><td>${x.quantity}</td><td>${money(x.total_amount)}</td></tr>`).join("")}).join("");
+ $("expensesList").innerHTML=expenses.map(x=>`<tr><td>${x.expense_date}</td><td>${escapeHTML(x.category)}</td><td>${escapeHTML(memberName(x.member_id))}</td><td>${escapeHTML(x.description)}</td><td>${money(x.amount)}</td></tr>`).join("");
+ $("duesList").innerHTML=dues.map(x=>`<tr><td>${escapeHTML(x.person_name)}</td><td>${money(x.amount)}</td><td>${x.paid?"Paid":"বাকি"}</td><td><button onclick="toggleDue('${x.id}',${!x.paid})">${x.paid?"বাকি করুন":"Paid করুন"}</button></td></tr>`).join("");
+ $("stockList").innerHTML=stocks.map(x=>`<tr><td>${escapeHTML(x.item_name)}</td><td>${x.quantity}</td><td>${escapeHTML(x.unit)}</td><td>${money(x.total_value)}</td></tr>`).join("");
+ const sum=a=>a.reduce((n,x)=>n+Number(x),0);
+ const totalS=sum(sales.map(x=>x.total_amount)),totalE=sum(expenses.map(x=>x.amount));
+ const ts=sum(sales.filter(x=>x.sale_date===today()).map(x=>x.total_amount));
+ const te=sum(expenses.filter(x=>x.expense_date===today()).map(x=>x.amount));
+ $("totalSales").textContent=money(totalS);$("totalExpenses").textContent=money(totalE);$("balance").textContent=money(totalS-totalE);
+ $("todaySales").textContent=money(ts);$("todayExpenses").textContent=money(te);$("todayBalance").textContent=money(ts-te);
+ $("memberTotals").innerHTML=members.map(m=>`<tr><td>${escapeHTML(m.display_name)}</td><td>${money(sum(sales.filter(s=>s.member_id===m.id).map(s=>s.total_amount)))}</td></tr>`).join("");
+ const rows=[
+ ...sales.map(x=>({date:x.sale_date,type:"বিক্রি",desc:"বিক্রি",member:memberName(x.member_id),amount:Number(x.total_amount)})),
+ ...expenses.map(x=>({date:x.expense_date,type:"খরচ",desc:x.description||x.category,member:memberName(x.member_id),amount:-Number(x.amount)}))
+ ].sort((a,b)=>b.date.localeCompare(a.date));
+ $("ledgerList").innerHTML=rows.map(x=>`<tr><td>${x.date}</td><td>${x.type}</td><td>${escapeHTML(x.desc)}</td><td>${escapeHTML(x.member)}</td><td class="${x.amount<0?"negative":"positive"}">${money(x.amount)}</td></tr>`).join("");
+}
+function calculateSale(){$("saleTotal").value=(Number($("saleQty").value||0)*Number($("saleUnitPrice").value||0)).toFixed(2)}
+function priceChanged(){const x=items.find(x=>x.id===$("saleItem").value);if(x){$("saleUnitPrice").value=x.unit_price;calculateSale()}}
+async function addItem(){
+ try{const name=$("itemName").value.trim(),price=Number($("itemPrice").value);if(!name||price<0||!Number.isFinite(price))throw Error("সঠিক নাম ও মূল্য দিন");
+ const {error}=await db.from("items").insert({item_name:name,unit_price:price});if(error)throw error;
+ $("itemName").value="";$("itemPrice").value="";await refreshAll();
+ }catch(e){alert(e.message)}
+}
+async function editItem(id){
+ const x=items.find(x=>x.id===id);const name=prompt("পণ্যের নাম",x.item_name);if(name===null)return;
+ const price=prompt("একক মূল্য SAR",x.unit_price);if(price===null)return;
+ try{const {error}=await db.from("items").update({item_name:name,unit_price:Number(price)}).eq("id",id);if(error)throw error;await refreshAll()}catch(e){alert(e.message)}
+}
+async function addSale(){
+ try{
+ const qty=Number($("saleQty").value),price=Number($("saleUnitPrice").value),total=qty*price;
+ const item=items.find(x=>x.id===$("saleItem").value);
+ if(!item||qty<=0||price<0)throw Error("পণ্য, পরিমাণ ও মূল্য সঠিকভাবে দিন");
+ const {data:s,error}=await db.from("sales").insert({sale_date:$("saleDate").value,member_id:$("saleMember").value||null,total_amount:total,payment_method:$("salePayment").value}).select().single();
+ if(error)throw error;
+ const {error:ie}=await db.from("sale_items").insert({sale_id:s.id,item_id:item.id,item_name:item.item_name,quantity:qty,unit_price:price,total_amount:total});
+ if(ie){await db.from("sales").delete().eq("id",s.id);throw ie}
+ $("saleQty").value="";$("saleTotal").value="";await refreshAll();
+ }catch(e){alert("বিক্রি সংরক্ষণ হয়নি: "+e.message)}
+}
+async function addExpense(){
+ try{const amount=Number($("expenseAmount").value);if(amount<=0)throw Error("খরচের টাকা দিন");
+ const {error}=await db.from("expenses").insert({expense_date:$("expenseDate").value,member_id:$("expenseMember").value||null,category:$("expenseCategory").value,description:$("expenseDescription").value,amount});
+ if(error)throw error;$("expenseAmount").value="";$("expenseDescription").value="";await refreshAll();
+ }catch(e){alert(e.message)}
+}
+async function addDue(){
+ try{const amount=Number($("dueAmount").value),name=$("duePerson").value.trim();if(!name||amount<=0)throw Error("নাম ও টাকা দিন");
+ const {error}=await db.from("dues").insert({due_date:$("dueDate").value,person_name:name,amount,member_id:$("dueMember").value||null});
+ if(error)throw error;$("duePerson").value="";$("dueAmount").value="";await refreshAll();
+ }catch(e){alert(e.message)}
+}
+async function toggleDue(id,paid){
+ try{const {error}=await db.from("dues").update({paid}).eq("id",id);if(error)throw error;await refreshAll()}catch(e){alert(e.message)}
+}
+async function addStock(){
+ try{const name=$("stockName").value.trim(),quantity=Number($("stockQty").value),value=Number($("stockValue").value);
+ if(!name||quantity<0||value<0)throw Error("স্টকের তথ্য দিন");
+ const {error}=await db.from("stock_items").insert({item_name:name,quantity,unit:$("stockUnit").value,total_value:value});
+ if(error)throw error;$("stockName").value="";$("stockQty").value="";$("stockUnit").value="";$("stockValue").value="";await refreshAll();
+ }catch(e){alert(e.message)}
+}
+async function updateProfile(){
+ try{const displayName=$("newDisplayName").value.trim(),username=$("newUsername").value.trim();
+ const r=await callFunction("update_profile",{displayName,username});
+ alert(r.message||"তথ্য পরিবর্তন হয়েছে");await refreshAll();
+ }catch(e){alert(e.message)}
+}
+async function createInvite(){
+ try{const r=await callFunction("create_invite");$("inviteResult").textContent="নতুন Invite Code: "+(r.inviteCode||r.code||"");}catch(e){alert(e.message)}
+}
+function download(name,content,type){const a=document.createElement("a"),u=URL.createObjectURL(new Blob([content],{type}));a.href=u;a.download=name;a.click();URL.revokeObjectURL(u)}
+function exportCSV(){
+ const rows=[["Date","Type","Description","Member","Amount SAR"],
+ ...sales.map(x=>[x.sale_date,"Sale","Sales",memberName(x.member_id),x.total_amount]),
+ ...expenses.map(x=>[x.expense_date,"Expense",x.description||x.category,memberName(x.member_id),-x.amount])];
+ download("Al-Fursan-Accounts.csv","\uFEFF"+rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\n"),"text/csv;charset=utf-8");
+}
+function exportMemberCSV(){
+ const rows=[["Member","Date","Amount SAR"],...sales.map(x=>[memberName(x.member_id),x.sale_date,x.total_amount])];
+ download("Member-Sales.csv","\uFEFF"+rows.map(r=>r.join(",")).join("\n"),"text/csv;charset=utf-8");
+}
+function backupJSON(){download("Al-Fursan-Backup.json",JSON.stringify({members,items,sales,saleItems,expenses,dues,stocks},null,2),"application/json")}
+async function restoreJSON(){
+ const f=$("restoreFile").files[0];if(!f)return alert("Backup ফাইল নির্বাচন করুন");
+ if(!confirm("Restore করলে একই ID-র পুরোনো তথ্য আপডেট হবে। চালাবেন?"))return;
+ try{
+ const data=JSON.parse(await f.text());
+ for(const [table,key] of [["items","items"],["sales","sales"],["sale_items","saleItems"],["expenses","expenses"],["dues","dues"],["stock_items","stocks"]]){
+ if(data[key]?.length){const {error}=await db.from(table).upsert(data[key]);if(error)throw error}
+ }
+ await refreshAll();alert("Backup Restore সম্পন্ন");
+ }catch(e){alert("Restore সমস্যা: "+e.message)}
+}
+db.auth.getSession().then(({data})=>{if(data.session)startApp()});
+</script>
+</body>
+</html>
